@@ -569,3 +569,24 @@ Pose-moi une question concrète et je te répondrai comme un vrai coach.`;
     </div>
   );
 }
+function SliderRow({ label, value, setValue }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 6, fontSize: 14, opacity: 0.8 }}>
+        {label} : {value}/10
+      </div>
+
+      <input
+        type="range"
+        min={1}
+        max={10}
+        value={value}
+        onChange={(e) => setValue(Number(e.target.value))}
+        style={{
+          width: "100%",
+          accentColor: "#7c5cff",
+        }}
+      />
+    </div>
+  );
+}
