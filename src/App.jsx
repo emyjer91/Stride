@@ -1,22 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export default function App() {
   const [tab, setTab] = useState("home");
   const [runType, setRunType] = useState("Footing facile");
   const [duration, setDuration] = useState(30);
-  const [started, setStarted] = useState(false);
 
   function handleStartFromHome() {
     setTab("run");
-  }
-
-  function handleLaunchRun() {
-    setStarted(true);
-  }
-
-  function handleBackHome() {
-    setStarted(false);
-    setTab("home");
   }
 
   return (
@@ -43,9 +33,6 @@ export default function App() {
             setRunType={setRunType}
             duration={duration}
             setDuration={setDuration}
-            started={started}
-            onLaunchRun={handleLaunchRun}
-            onBackHome={handleBackHome}
           />
         )}
 
@@ -139,10 +126,7 @@ function Home({ onStartRun, onOpenCoach }) {
         </div>
       </Card>
 
-      <button
-        onClick={onStartRun}
-        style={primaryButtonStyle}
-      >
+      <button onClick={onStartRun} style={primaryButtonStyle}>
         Commencer ma séance
       </button>
 
@@ -180,17 +164,16 @@ function Home({ onStartRun, onOpenCoach }) {
   );
 }
 
-function Run({
-  runType,
-  setRunType,
-  duration,
-  setDuration,
-  started,
-  onLaunchRun,
-  onBackHome,
-}) {
+function Run({ runType, setRunType, duration, setDuration }) {
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   const types = ["Footing facile", "Endurance", "Fractionné", "Sortie longue"];
   const durations = [20, 30, 45, 60];
+
+  const targetSeconds = duration * 60;
+  const progress = Math.min((elapsedSeconds / targetSeconds) * 100, 100);
 
   const coachSuggestion = useMemo(() => {
     if (runType === "Fractionné") {
@@ -201,6 +184,62 @@ function Run({
     }
     return `Aujourd’hui : ${runType.toLowerCase()} recommandé sur ${duration} minutes.`;
   }, [runType, duration]);
+
+  useEffect(() => {
+    if (!isRunning || isPaused) return;
+
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => {
+        if (prev >= targetSeconds) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isRunning, isPaused, targetSeconds]);
+
+  useEffect(() => {
+    if (elapsedSeconds >= targetSeconds && targetSeconds > 0) {
+      setIsRunning(false);
+      setIsPaused(false);
+    }
+  }, [elapsedSeconds, targetSeconds]);
+
+  function handleStart() {
+    setElapsedSeconds(0);
+    setIsRunning(true);
+    setIsPaused(false);
+  }
+
+  function handlePauseResume() {
+    setIsPaused((prev) => !prev);
+  }
+
+  function handleStop() {
+    setIsRunning(false);
+    setIsPaused(false);
+    setElapsedSeconds(0);
+  }
+
+  function handleChangeType(item) {
+    setRunType(item);
+    setIsRunning(false);
+    setIsPaused(false);
+    setElapsedSeconds(0);
+  }
+
+  function handleChangeDuration(item) {
+    setDuration(item);
+    setIsRunning(false);
+    setIsPaused(false);
+    setElapsedSeconds(0);
+  }
+
+  const timeText = formatTime(elapsedSeconds);
+  const remainingText = formatTime(Math.max(targetSeconds - elapsedSeconds, 0));
 
   return (
     <div>
@@ -218,27 +257,75 @@ function Run({
         Choisis le type de séance, la durée, puis lance ton entraînement.
       </p>
 
-      {started && (
+      <Card style={{ marginTop: 18 }}>
+        <Label>Chrono live</Label>
         <div
           style={{
-            marginTop: 18,
-            borderRadius: 18,
-            padding: 16,
-            background: "rgba(34,197,94,0.14)",
-            border: "1px solid rgba(34,197,94,0.35)",
+            fontSize: 44,
+            fontWeight: 800,
+            letterSpacing: 1,
+            marginBottom: 10,
           }}
         >
-          <div style={{ fontSize: 14, opacity: 0.8 }}>Séance lancée</div>
-          <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6 }}>
-            {runType} • {duration} min
-          </div>
-          <div style={{ marginTop: 8, color: "rgba(255,255,255,0.82)" }}>
-            Flow prêt. On pourra ensuite ajouter chrono, pause et GPS.
-          </div>
+          {timeText}
         </div>
-      )}
 
-      <Card style={{ marginTop: 22 }}>
+        <div
+          style={{
+            fontSize: 14,
+            color: "rgba(255,255,255,0.65)",
+            marginBottom: 14,
+          }}
+        >
+          Temps restant : {remainingText}
+        </div>
+
+        <div
+          style={{
+            width: "100%",
+            height: 12,
+            background: "rgba(255,255,255,0.08)",
+            borderRadius: 999,
+            overflow: "hidden",
+            marginBottom: 14,
+          }}
+        >
+          <div
+            style={{
+              width: `${progress}%`,
+              height: "100%",
+              background: "linear-gradient(135deg, #9333ea, #2563eb)",
+              transition: "width 0.4s ease",
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isRunning ? "1fr 1fr" : "1fr",
+            gap: 10,
+          }}
+        >
+          {!isRunning ? (
+            <button onClick={handleStart} style={primaryButtonStyle}>
+              Démarrer la séance
+            </button>
+          ) : (
+            <>
+              <button onClick={handlePauseResume} style={primaryButtonStyle}>
+                {isPaused ? "Reprendre" : "Pause"}
+              </button>
+
+              <button onClick={handleStop} style={secondaryButtonStyle}>
+                Arrêter
+              </button>
+            </>
+          )}
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
         <Label>Type de séance</Label>
         <div style={{ display: "grid", gap: 10 }}>
           {types.map((item) => {
@@ -246,10 +333,7 @@ function Run({
             return (
               <button
                 key={item}
-                onClick={() => {
-                  setRunType(item);
-                  if (started) onBackHome();
-                }}
+                onClick={() => handleChangeType(item)}
                 style={{
                   textAlign: "left",
                   borderRadius: 16,
@@ -286,10 +370,7 @@ function Run({
             return (
               <button
                 key={item}
-                onClick={() => {
-                  setDuration(item);
-                  if (started) onBackHome();
-                }}
+                onClick={() => handleChangeDuration(item)}
                 style={{
                   borderRadius: 16,
                   border: active
@@ -317,27 +398,11 @@ function Run({
           {coachSuggestion}
         </div>
       </Card>
-
-      {!started ? (
-        <button onClick={onLaunchRun} style={{ ...primaryButtonStyle, marginTop: 18 }}>
-          Démarrer la séance
-        </button>
-      ) : (
-        <button onClick={onBackHome} style={{ ...secondaryButtonStyle, marginTop: 18 }}>
-          Retour à l’accueil
-        </button>
-      )}
     </div>
   );
 }
 
 function Coach({ runType, duration, onGoRun }) {
-  const readiness = useMemo(() => {
-    if (runType === "Fractionné") return "Charge nerveuse à surveiller";
-    if (runType === "Sortie longue") return "Bonne disponibilité aérobie";
-    return "Bonne fraîcheur générale";
-  }, [runType]);
-
   return (
     <div>
       <h1 style={{ fontSize: 36, margin: 0, fontWeight: 800 }}>Coach IA</h1>
@@ -363,23 +428,16 @@ function Coach({ runType, duration, onGoRun }) {
       </Card>
 
       <Card style={{ marginTop: 16 }}>
-        <Label>État de forme estimé</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>{readiness}</div>
-      </Card>
-
-      <Card style={{ marginTop: 16 }}>
-        <Label>Récupération</Label>
+        <Label>Charge récente</Label>
         <div style={{ fontSize: 18, fontWeight: 800 }}>
-          Sommeil correct • hydratation à renforcer • jambes plutôt disponibles
+          Correcte • équilibre à surveiller
         </div>
       </Card>
 
       <Card style={{ marginTop: 16 }}>
-        <Label>Conseil premium</Label>
-        <div style={{ fontSize: 17, lineHeight: 1.5 }}>
-          Si tu te sens lourd dès l’échauffement, garde 10 minutes très faciles
-          avant d’accélérer. Le but n’est pas de forcer, mais de construire de
-          la qualité.
+        <Label>Sommeil & récupération</Label>
+        <div style={{ fontSize: 18, fontWeight: 800 }}>
+          Bonne base, mais marge d’optimisation
         </div>
       </Card>
 
@@ -536,6 +594,12 @@ function Badge({ children }) {
       {children}
     </div>
   );
+}
+
+function formatTime(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 const primaryButtonStyle = {
