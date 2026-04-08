@@ -166,6 +166,12 @@ function Run({ runType, setRunType, duration, setDuration }) {
   const targetSeconds = duration * 60;
   const progress = Math.min((elapsedSeconds / targetSeconds) * 100, 100);
 
+  const pace = useMemo(() => {
+    if (distance <= 0 || elapsedSeconds <= 0) return "--:--";
+    const secondsPerKm = elapsedSeconds / distance;
+    return formatPace(secondsPerKm);
+  }, [distance, elapsedSeconds]);
+
   const coachSuggestion = useMemo(() => {
     if (runType === "Fractionné") {
       return `Aujourd’hui : ${runType.toLowerCase()} sur ${duration} minutes si tu es en forme.`;
@@ -438,8 +444,12 @@ function Run({ runType, setRunType, duration, setDuration }) {
           Distance : {distance.toFixed(2)} km
         </div>
 
-        <div style={{ fontSize: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 14, marginBottom: 6 }}>
           Vitesse : {speed || 0} km/h
+        </div>
+
+        <div style={{ fontSize: 14, marginBottom: 14 }}>
+          Allure : {pace} /km
         </div>
 
         <div
@@ -882,6 +892,16 @@ function Badge({ children }) {
 function formatTime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0"
+  )}`;
+}
+
+function formatPace(secondsPerKm) {
+  if (!Number.isFinite(secondsPerKm) || secondsPerKm <= 0) return "--:--";
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = Math.round(secondsPerKm % 60);
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
     2,
     "0"
