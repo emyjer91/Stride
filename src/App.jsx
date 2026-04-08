@@ -152,8 +152,13 @@ function Run({ runType, setRunType, duration, setDuration }) {
   const [speed, setSpeed] = useState(0);
   const [watchId, setWatchId] = useState(null);
 
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceReady, setVoiceReady] = useState(false);
+  const [announceSplits, setAnnounceSplits] = useState(true);
+
   const lastPositionRef = useRef(null);
   const lastTimestampRef = useRef(null);
+  const lastAnnouncedMinuteRef = useRef(null);
 
   const types = ["Footing facile", "Endurance", "Fractionné", "Sortie longue"];
   const durations = [20, 30, 45, 60];
@@ -192,8 +197,43 @@ function Run({ runType, setRunType, duration, setDuration }) {
       setIsRunning(false);
       setIsPaused(false);
       stopGPS();
+      speak(
+        voiceEnabled,
+        `Séance terminée. Bravo. Tu as complété ${duration} minutes de ${runType.toLowerCase()}.`
+      );
     }
-  }, [elapsedSeconds, targetSeconds, isRunning]);
+  }, [elapsedSeconds, targetSeconds, isRunning, voiceEnabled, duration, runType]);
+
+  useEffect(() => {
+    if (!isRunning || !announceSplits || elapsedSeconds === 0) return;
+
+    const currentMinute = Math.floor(elapsedSeconds / 60);
+    const exactFiveMinuteMark = elapsedSeconds % 300 === 0;
+
+    if (
+      exactFiveMinuteMark &&
+      currentMinute > 0 &&
+      lastAnnouncedMinuteRef.current !== currentMinute
+    ) {
+      lastAnnouncedMinuteRef.current = currentMinute;
+      const remainingMinutes = Math.max(
+        Math.ceil((targetSeconds - elapsedSeconds) / 60),
+        0
+      );
+      speak(
+        voiceEnabled,
+        `${currentMinute} minutes effectuées. Il reste environ ${remainingMinutes} minutes.`
+      );
+    }
+  }, [elapsedSeconds, isRunning, announceSplits, targetSeconds, voiceEnabled]);
+
+  function unlockVoice() {
+    const ok = primeSpeech();
+    setVoiceReady(ok);
+    if (ok) {
+      speak(true, "Voix STRIDE activée.");
+    }
+  }
 
   function startGPS() {
     if (!navigator.geolocation) {
@@ -253,16 +293,23 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setSpeed(0);
     setIsRunning(true);
     setIsPaused(false);
+    lastAnnouncedMinuteRef.current = null;
     startGPS();
+    speak(
+      voiceEnabled,
+      `Séance démarrée. ${runType}. Objectif ${duration} minutes. Bonne séance.`
+    );
   }
 
   function handlePauseResume() {
     if (isPaused) {
       setIsPaused(false);
       startGPS();
+      speak(voiceEnabled, "Séance reprise.");
     } else {
       setIsPaused(true);
       stopGPS();
+      speak(voiceEnabled, "Séance en pause.");
     }
   }
 
@@ -272,7 +319,9 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setElapsedSeconds(0);
     setDistance(0);
     setSpeed(0);
+    lastAnnouncedMinuteRef.current = null;
     stopGPS();
+    speak(voiceEnabled, "Séance arrêtée.");
   }
 
   function handleChangeType(item) {
@@ -305,6 +354,60 @@ function Run({ runType, setRunType, duration, setDuration }) {
       </p>
 
       <Card style={{ marginTop: 18 }}>
+        <Label>Voix coach</Label>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <button onClick={unlockVoice} style={secondaryButtonStyle}>
+            {voiceReady ? "Voix prête" : "Activer la voix"}
+          </button>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+            }}
+          >
+            <button
+              onClick={() => setVoiceEnabled((v) => !v)}
+              style={{
+                ...secondaryButtonStyle,
+                background: voiceEnabled
+                  ? "rgba(124,92,255,0.18)"
+                  : "rgba(255,255,255,0.04)",
+                border: voiceEnabled
+                  ? "1px solid rgba(124,92,255,0.9)"
+                  : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              {voiceEnabled ? "Voix ON" : "Voix OFF"}
+            </button>
+
+            <button
+              onClick={() => setAnnounceSplits((v) => !v)}
+              style={{
+                ...secondaryButtonStyle,
+                background: announceSplits
+                  ? "rgba(124,92,255,0.18)"
+                  : "rgba(255,255,255,0.04)",
+                border: announceSplits
+                  ? "1px solid rgba(124,92,255,0.9)"
+                  : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              {announceSplits ? "Annonces 5 min ON" : "Annonces 5 min OFF"}
+            </button>
+          </div>
+
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+            Active d’abord la voix, puis démarre la séance. Sur certains
+            téléphones, le navigateur demande un premier clic pour autoriser la
+            synthèse vocale.
+          </div>
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
         <Label>Chrono live + GPS</Label>
 
         <div
@@ -529,7 +632,12 @@ function Coach({ runType, duration, onGoRun }) {
       </button>
 
       <Card style={{ marginTop: 18, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: 18, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div
+          style={{
+            padding: 18,
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
           <Label>Parle à ton coach</Label>
         </div>
 
@@ -768,7 +876,10 @@ function Badge({ children }) {
 function formatTime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0"
+  )}`;
 }
 
 function getDistance(pos1, pos2) {
@@ -787,53 +898,156 @@ function getDistance(pos1, pos2) {
 }
 
 function getCoachReply(question, context) {
-  const q = question.toLowerCase();
+  const q = question.toLowerCase().trim();
 
-  if (q.includes("perdre du poids") || q.includes("maigrir") || q.includes("mincir")) {
-    return "Pour perdre du poids, vise surtout la régularité : 3 à 5 séances par semaine, majorité en endurance facile, un léger déficit calorique, beaucoup de marche au quotidien, et une bonne récupération. Évite de vouloir aller trop vite dès le départ.";
+  const has = (...words) => words.some((word) => q.includes(word));
+
+  if (
+    has(
+      "poids",
+      "poid",
+      "maigrir",
+      "mincir",
+      "sécher",
+      "secher",
+      "gras",
+      "ventre",
+      "calorie",
+      "calories",
+      "régime",
+      "regime",
+      "perdre"
+    )
+  ) {
+    return "Pour perdre du poids efficacement, vise surtout la régularité : 3 à 5 séances par semaine, beaucoup d’endurance facile, un léger déficit calorique, plus de marche au quotidien, un bon sommeil, et de la patience. Le plus important est d’éviter les excès et de tenir sur la durée.";
   }
 
-  if (q.includes("semi")) {
-    return "Pour préparer un semi, construis ta base avec 3 à 4 sorties par semaine : 1 footing facile, 1 séance de qualité, 1 sortie longue progressive, et éventuellement 1 séance récupération. Monte le volume progressivement et garde une semaine plus légère régulièrement.";
+  if (has("semi", "semi-marathon", "semi marathon")) {
+    return "Pour préparer un semi, fais idéalement 3 à 4 sorties par semaine : 1 footing facile, 1 séance de qualité, 1 sortie longue progressive, et éventuellement 1 sortie récupération. Augmente le volume petit à petit sans brûler les étapes.";
   }
 
-  if (q.includes("10 km") || q.includes("10km")) {
-    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil, et un peu de vitesse. Une bonne structure : 1 footing facile, 1 séance tempo ou seuil, 1 séance plus rythmée type fractionné, et 1 sortie plus longue légère.";
+  if (has("10 km", "10km")) {
+    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil et un peu de vitesse. Une bonne base : 1 footing facile, 1 séance tempo ou seuil, 1 séance plus rythmée, et 1 sortie un peu plus longue.";
   }
 
-  if (q.includes("5 km") || q.includes("5km")) {
-    return "Pour un 5 km, garde une base d’endurance mais ajoute du travail de vitesse et de VO2. Il faut être capable de courir vite, mais aussi de tenir ton allure sans exploser après le 2e ou 3e kilomètre.";
+  if (has("5 km", "5km")) {
+    return "Pour un 5 km, garde une base d’endurance mais ajoute du travail de vitesse et de VO2. Il faut réussir à courir vite sans exploser trop tôt.";
   }
 
-  if (q.includes("fatigué") || q.includes("fatigue") || q.includes("crevé")) {
-    return "Si tu te sens fatigué, baisse l’intensité aujourd’hui. Un footing facile très court ou du repos peut être plus rentable qu’une grosse séance mal absorbée. Le but est de progresser, pas de t’épuiser.";
+  if (has("fatigué", "fatigue", "crevé", "épuisé", "epuise")) {
+    return "Si tu te sens fatigué, allège aujourd’hui. Un footing très facile, une marche active ou du repos peuvent être bien plus utiles qu’une grosse séance mal encaissée.";
   }
 
-  if (q.includes("récup") || q.includes("recup") || q.includes("récupération")) {
-    return "Pour bien récupérer : sommeil, hydratation, alimentation correcte, et intensité facile le lendemain d’une séance dure. Une bonne récupération améliore directement la qualité des prochaines séances.";
+  if (has("récup", "recup", "récupération", "recuperation")) {
+    return "Pour bien récupérer : sommeil, hydratation, alimentation correcte, et séance facile après un effort dur. La récupération fait partie de l’entraînement.";
   }
 
-  if (q.includes("aujourd") || q.includes("quoi faire") || q.includes("séance du jour")) {
-    return `Aujourd’hui, je te recommande plutôt une séance de ${context.runType.toLowerCase()} sur ${context.duration} minutes, en restant propre techniquement et sans te griller inutilement.`;
+  if (has("aujourd", "quoi faire", "séance du jour", "seance du jour")) {
+    return `Aujourd’hui, je te recommande plutôt une séance de ${context.runType.toLowerCase()} sur ${context.duration} minutes, en restant propre techniquement et sans te cramer.`;
   }
 
-  if (q.includes("allure")) {
-    return "Pour choisir ton allure, pars toujours légèrement plus facile que trop vite. Si tu termines solide et propre, c’est beaucoup mieux qu’un départ trop ambitieux.";
+  if (has("allure", "vitesse", "rythme", "km/h", "min/km")) {
+    return "Pour choisir la bonne allure, pars toujours un peu trop facile plutôt qu’un peu trop vite. Une séance propre vaut mieux qu’un départ trop ambitieux.";
   }
 
-  if (q.includes("fractionné")) {
-    return "Le fractionné doit rester maîtrisé. Il sert à travailler vite avec de la qualité, pas à finir détruit à chaque fois. Échauffe-toi bien, récupère correctement, et garde de la marge sur les premières répétitions.";
+  if (has("fractionné", "fractionne", "intervalle", "intervalles", "vma")) {
+    return "Le fractionné doit rester maîtrisé. Échauffe-toi bien, garde de la qualité, et ne cherche pas à te détruire sur chaque répétition.";
   }
 
-  if (q.includes("sortie longue")) {
-    return "La sortie longue construit ton endurance, ta résistance et ta capacité à durer. Commence facile, sois régulier, et n’essaie pas de la transformer en course à chaque fois.";
+  if (has("sortie longue", "longue")) {
+    return "La sortie longue développe ton endurance générale. Pars facile, reste régulier, et évite de transformer chaque sortie longue en course.";
   }
 
-  if (q.includes("bonjour") || q.includes("salut") || q.includes("hello")) {
-    return "Salut. Dis-moi ton objectif et ton état de forme, et je te proposerai une réponse claire et utile.";
+  if (has("motivation", "motiver", "envie", "flemme", "pas motivé")) {
+    return "La motivation bouge beaucoup, c’est normal. Le plus important est la régularité. Même une petite séance propre vaut mieux qu’une grosse séance que tu repousses sans cesse.";
   }
 
-  return "Je peux déjà bien t’aider sur : perte de poids, 5 km, 10 km, semi, fatigue, récupération, allure, fractionné et séance du jour. Pose-moi une question plus précise sur un de ces sujets.";
+  if (
+    has(
+      "manger",
+      "alimentation",
+      "nutrition",
+      "repas",
+      "protéine",
+      "glucide"
+    )
+  ) {
+    return "Pour bien courir, garde une alimentation simple : assez de protéines, des glucides de qualité, des fruits, des légumes et une bonne hydratation. Évite surtout les excès et le désordre.";
+  }
+
+  if (has("bonjour", "salut", "hello", "coucou")) {
+    return "Salut. Dis-moi ton objectif, ton niveau ou ton état de forme, et je te répondrai comme un coach running.";
+  }
+
+  return generateSmartFallback(question, context);
+}
+
+function generateSmartFallback(question, context) {
+  const q = question.toLowerCase().trim();
+
+  if (q.includes("plan")) {
+    return "Je peux te construire un plan simple. Dis-moi ton objectif précis : 5 km, 10 km, semi, perte de poids, reprise, ou remise en forme.";
+  }
+
+  if (q.includes("combien") || q.includes("temps")) {
+    return "Ça dépend de ton niveau actuel, de ton objectif et de ta fréquence d’entraînement. Donne-moi un peu plus de contexte et je te répondrai plus précisément.";
+  }
+
+  if (q.includes("comment")) {
+    return "Je peux t’aider précisément. Reformule juste ton objectif en une phrase simple, par exemple : comment progresser sur 10 km, comment perdre du poids, ou comment préparer un semi.";
+  }
+
+  if (q.includes("objectif")) {
+    return "Donne-moi ton objectif principal : perdre du poids, courir plus vite, préparer un 10 km, préparer un semi, reprendre la course ou améliorer ton endurance.";
+  }
+
+  return `Je peux déjà t’aider sur :
+- perte de poids
+- 5 km
+- 10 km
+- semi-marathon
+- fatigue
+- récupération
+- allure
+- fractionné
+- séance du jour
+
+Essaie une question simple comme :
+- comment perdre du poids
+- plan pour mon semi
+- je suis fatigué
+- quoi faire aujourd’hui`;
+}
+
+function primeSpeech() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return false;
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(" ");
+    utterance.volume = 0;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function speak(enabled, text) {
+  if (!enabled) return;
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "fr-FR";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    // no-op
+  }
 }
 
 const primaryButtonStyle = {
