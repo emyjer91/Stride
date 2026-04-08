@@ -592,4 +592,4 @@ function SliderRow({ label, value, setValue }) {
 }
 export default function CoachTab() {
   return <CoachPremiumV1 />;
-}
+} 
