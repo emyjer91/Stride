@@ -590,3 +590,6 @@ function SliderRow({ label, value, setValue }) {
     </div>
   );
 }
+export default function CoachTab() {
+  return <CoachPremiumV1 />;
+}
