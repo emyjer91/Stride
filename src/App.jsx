@@ -174,7 +174,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
   const [watchId, setWatchId] = useState(null);
 
   const lastPositionRef = useRef(null);
-
+  const lastTimestampRef = useRef(null);
   const types = ["Footing facile", "Endurance", "Fractionné", "Sortie longue"];
   const durations = [20, 30, 45, 60];
 
@@ -215,11 +215,48 @@ function Run({ runType, setRunType, duration, setDuration }) {
     }
   }, [elapsedSeconds, targetSeconds, isRunning]);
 
-  function startGPS() {
-    if (!navigator.geolocation) {
-      alert("GPS non supporté sur cet appareil.");
-      return;
+function startGPS() {
+  if (!navigator.geolocation) {
+    alert("GPS non supporté sur cet appareil.");
+    return;
+  }
+
+  const id = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude, speed: currentSpeed } = pos.coords;
+      const current = { latitude, longitude };
+      const now = pos.timestamp;
+
+      if (lastPositionRef.current) {
+        const dist = getDistance(lastPositionRef.current, current);
+        setDistance((d) => d + dist);
+
+        if (currentSpeed != null && !Number.isNaN(currentSpeed)) {
+          setSpeed((currentSpeed * 3.6).toFixed(1));
+        } else if (lastTimestampRef.current) {
+          const deltaSeconds = (now - lastTimestampRef.current) / 1000;
+          if (deltaSeconds > 0) {
+            const speedKmH = (dist / deltaSeconds) * 3600;
+            setSpeed(speedKmH.toFixed(1));
+          }
+        }
+      }
+
+      lastPositionRef.current = current;
+      lastTimestampRef.current = now;
+    },
+    (err) => {
+      console.log("Erreur GPS :", err);
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 1000,
+      timeout: 10000,
     }
+  );
+
+  setWatchId(id);
+}
 
     const id = navigator.geolocation.watchPosition(
       (pos) => {
