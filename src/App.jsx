@@ -156,6 +156,8 @@ function Run({ runType, setRunType, duration, setDuration }) {
   const [voiceReady, setVoiceReady] = useState(false);
   const [announceSplits, setAnnounceSplits] = useState(true);
 
+  const [routePoints, setRoutePoints] = useState([]);
+
   const lastPositionRef = useRef(null);
   const lastTimestampRef = useRef(null);
   const lastAnnouncedMinuteRef = useRef(null);
@@ -253,11 +255,16 @@ function Run({ runType, setRunType, duration, setDuration }) {
         const current = { latitude, longitude };
         const now = pos.timestamp;
 
+        setRoutePoints((prev) => [...prev, current]);
+
         if (lastPositionRef.current) {
           const dist = getDistance(lastPositionRef.current, current);
-          setDistance((d) => d + dist);
 
-          if (currentSpeed != null && !Number.isNaN(currentSpeed)) {
+          if (dist > 0.001) {
+            setDistance((d) => d + dist);
+          }
+
+          if (currentSpeed != null && !Number.isNaN(currentSpeed) && currentSpeed >= 0) {
             setSpeed((currentSpeed * 3.6).toFixed(1));
           } else if (lastTimestampRef.current) {
             const deltaSeconds = (now - lastTimestampRef.current) / 1000;
@@ -297,6 +304,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setElapsedSeconds(0);
     setDistance(0);
     setSpeed(0);
+    setRoutePoints([]);
     setIsRunning(true);
     setIsPaused(false);
     lastAnnouncedMinuteRef.current = null;
@@ -325,6 +333,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setElapsedSeconds(0);
     setDistance(0);
     setSpeed(0);
+    setRoutePoints([]);
     lastAnnouncedMinuteRef.current = null;
     stopGPS();
 
@@ -452,6 +461,8 @@ function Run({ runType, setRunType, duration, setDuration }) {
           Allure : {pace} /km
         </div>
 
+        <RouteMiniMap points={routePoints} />
+
         <div
           style={{
             width: "100%",
@@ -459,6 +470,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
             background: "rgba(255,255,255,0.08)",
             borderRadius: 999,
             overflow: "hidden",
+            marginTop: 14,
             marginBottom: 14,
           }}
         >
@@ -573,6 +585,94 @@ function Run({ runType, setRunType, duration, setDuration }) {
           {coachSuggestion}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function RouteMiniMap({ points }) {
+  const width = 320;
+  const height = 180;
+  const padding = 16;
+
+  if (!points || points.length < 2) {
+    return (
+      <div
+        style={{
+          height,
+          borderRadius: 18,
+          background:
+            "radial-gradient(circle at top, rgba(124,92,255,0.12), rgba(255,255,255,0.03))",
+          border: "1px solid rgba(255,255,255,0.08)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "rgba(255,255,255,0.5)",
+          fontSize: 14,
+        }}
+      >
+        Le tracé GPS apparaîtra ici
+      </div>
+    );
+  }
+
+  const lats = points.map((p) => p.latitude);
+  const lngs = points.map((p) => p.longitude);
+
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+
+  const latRange = maxLat - minLat || 0.0001;
+  const lngRange = maxLng - minLng || 0.0001;
+
+  const mapped = points.map((p) => {
+    const x =
+      padding + ((p.longitude - minLng) / lngRange) * (width - padding * 2);
+    const y =
+      height -
+      padding -
+      ((p.latitude - minLat) / latRange) * (height - padding * 2);
+    return { x, y };
+  });
+
+  const pathD = mapped
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+    .join(" ");
+
+  const start = mapped[0];
+  const end = mapped[mapped.length - 1];
+
+  return (
+    <div
+      style={{
+        borderRadius: 18,
+        overflow: "hidden",
+        background:
+          "radial-gradient(circle at top, rgba(124,92,255,0.14), rgba(255,255,255,0.03))",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+        <defs>
+          <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#9333ea" />
+            <stop offset="100%" stopColor="#2563eb" />
+          </linearGradient>
+        </defs>
+
+        <path
+          d={pathD}
+          fill="none"
+          stroke="url(#routeGradient)"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        <circle cx={start.x} cy={start.y} r="5" fill="#22c55e" />
+        <circle cx={end.x} cy={end.y} r="6" fill="#ffffff" />
+      </svg>
     </div>
   );
 }
@@ -901,8 +1001,15 @@ function formatTime(totalSeconds) {
 function formatPace(secondsPerKm) {
   if (!Number.isFinite(secondsPerKm) || secondsPerKm <= 0) return "--:--";
   const minutes = Math.floor(secondsPerKm / 60);
-  const seconds = Math.round(secondsPerKm % 60);
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+  let seconds = Math.round(secondsPerKm % 60);
+  let safeMinutes = minutes;
+
+  if (seconds === 60) {
+    safeMinutes += 1;
+    seconds = 0;
+  }
+
+  return `${String(safeMinutes).padStart(2, "0")}:${String(seconds).padStart(
     2,
     "0"
   )}`;
@@ -946,14 +1053,7 @@ function getCoachReply(question, context) {
       "mal à dormir",
       "mal a dormir",
       "du mal à dormir",
-      "du mal a dormir",
-      "du mal à trouver le sommeil",
-      "du mal a trouver le sommeil",
-      "je ne dors pas bien",
-      "je me réveille",
-      "je me reveille",
-      "réveils nocturnes",
-      "reveils nocturnes"
+      "du mal a dormir"
     )
   ) {
     return "Si tu as du mal à dormir, commence par regarder 5 points : évite les écrans et la lumière forte 60 à 90 minutes avant le coucher, garde des horaires assez réguliers, évite les boissons stimulantes en fin de journée, fais redescendre la pression avec une routine calme comme respiration lente ou lecture, et allège un peu l’intensité de tes séances si ton sommeil est mauvais depuis plusieurs jours.";
@@ -976,15 +1076,15 @@ function getCoachReply(question, context) {
       "perdre"
     )
   ) {
-    return "Pour perdre du poids efficacement, vise surtout la régularité : 3 à 5 séances par semaine, beaucoup d’endurance facile, un léger déficit calorique, plus de marche au quotidien, un bon sommeil, et de la patience. Le plus important est d’éviter les excès et de tenir sur la durée.";
+    return "Pour perdre du poids efficacement, vise surtout la régularité : 3 à 5 séances par semaine, beaucoup d’endurance facile, un léger déficit calorique, plus de marche au quotidien, un bon sommeil, et de la patience.";
   }
 
   if (has("semi", "semi-marathon", "semi marathon")) {
-    return "Pour préparer un semi, fais idéalement 3 à 4 sorties par semaine : un footing facile, une séance de qualité, une sortie longue progressive, et éventuellement une sortie récupération. Augmente le volume petit à petit sans brûler les étapes.";
+    return "Pour préparer un semi, fais idéalement 3 à 4 sorties par semaine : un footing facile, une séance de qualité, une sortie longue progressive, et éventuellement une sortie récupération.";
   }
 
   if (has("10 km", "10km")) {
-    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil et un peu de vitesse. Une bonne base : un footing facile, une séance tempo ou seuil, une séance plus rythmée, et une sortie un peu plus longue.";
+    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil et un peu de vitesse. Le 10 km récompense la régularité et la gestion de l’allure.";
   }
 
   if (has("5 km", "5km")) {
@@ -1016,7 +1116,7 @@ function getCoachReply(question, context) {
   }
 
   if (has("motivation", "motiver", "envie", "flemme", "pas motivé")) {
-    return "La motivation bouge beaucoup, c’est normal. Le plus important est la régularité. Même une petite séance propre vaut mieux qu’une grosse séance que tu repousses sans cesse.";
+    return "La motivation bouge beaucoup, c’est normal. Le plus important est la régularité. Même une petite séance propre vaut mieux qu’une grosse séance repoussée.";
   }
 
   if (
@@ -1031,11 +1131,11 @@ function getCoachReply(question, context) {
       "glucides"
     )
   ) {
-    return "Pour bien courir, garde une alimentation simple : assez de protéines, des glucides de qualité, des fruits, des légumes et une bonne hydratation. Évite surtout les excès et le désordre.";
+    return "Pour bien courir, garde une alimentation simple : assez de protéines, des glucides de qualité, des fruits, des légumes et une bonne hydratation.";
   }
 
   if (has("stress", "angoisse", "anxiété", "anxiete", "pression")) {
-    return "Si tu te sens stressé, baisse un peu la pression mentale. Reviens à des choses simples : respiration, routine stable, séance facile, objectif court terme. Le stress consomme aussi de l’énergie, donc il faut parfois alléger pour mieux repartir.";
+    return "Si tu te sens stressé, baisse un peu la pression mentale. Reviens à des choses simples : respiration, routine stable, séance facile, objectif court terme.";
   }
 
   if (has("bonjour", "salut", "hello", "coucou")) {
@@ -1075,14 +1175,7 @@ function generateSmartFallback(question, context) {
 - allure
 - fractionné
 - motivation
-- séance du jour
-
-Essaie une question simple comme :
-- comment perdre du poids
-- plan pour mon semi
-- je suis fatigué
-- j’ai du mal à dormir
-- quoi faire aujourd’hui`;
+- séance du jour`;
 }
 
 function primeSpeech() {
@@ -1111,9 +1204,7 @@ function speak(enabled, text) {
     utterance.volume = 1;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
-  } catch {
-    // no-op
-  }
+  } catch {}
 }
 
 const primaryButtonStyle = {
