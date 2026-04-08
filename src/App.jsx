@@ -139,6 +139,27 @@ function Home({ onStartRun, onOpenCoach }) {
       >
         Voir mon coach IA
       </button>
+
+      <Card style={{ marginTop: 16 }}>
+        <Label>Séance du jour</Label>
+        <div style={{ fontSize: 18, fontWeight: 800 }}>
+          Footing progressif • 35 min
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <Label>Progression</Label>
+        <div style={{ fontSize: 18, fontWeight: 800 }}>
+          +12% sur les 4 dernières semaines
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <Label>Communauté</Label>
+        <div style={{ fontSize: 18, fontWeight: 800 }}>
+          248 coureurs actifs aujourd’hui
+        </div>
+      </Card>
     </div>
   );
 }
@@ -567,7 +588,7 @@ function Coach({ runType, duration, onGoRun }) {
     {
       role: "assistant",
       content:
-        "Salut. Je suis ton coach STRIDE local. Pose-moi une question running, objectif, semi, 10 km, perte de poids ou récupération.",
+        "Salut. Je suis ton coach STRIDE local. Je peux t’aider sur le sommeil, la fatigue, la perte de poids, le 5 km, le 10 km, le semi, l’allure, la récupération, la motivation et la séance du jour.",
     },
   ]);
 
@@ -899,8 +920,39 @@ function getDistance(pos1, pos2) {
 
 function getCoachReply(question, context) {
   const q = question.toLowerCase().trim();
+  const has = (...words) => words.some((w) => q.includes(w));
 
-  const has = (...words) => words.some((word) => q.includes(word));
+  if (
+    has(
+      "sommeil",
+      "dormir",
+      "endormir",
+      "endormissement",
+      "insomnie",
+      "insomnies",
+      "réveil",
+      "reveil",
+      "réveils",
+      "reveils",
+      "nuit",
+      "nuits",
+      "je dors mal",
+      "mal dormir",
+      "mal à dormir",
+      "mal a dormir",
+      "du mal à dormir",
+      "du mal a dormir",
+      "du mal à trouver le sommeil",
+      "du mal a trouver le sommeil",
+      "je ne dors pas bien",
+      "je me réveille",
+      "je me reveille",
+      "réveils nocturnes",
+      "reveils nocturnes"
+    )
+  ) {
+    return "Si tu as du mal à dormir, commence par regarder 5 points : évite les écrans et la lumière forte 60 à 90 minutes avant le coucher, garde des horaires assez réguliers, évite les boissons stimulantes en fin de journée, fais redescendre la pression avec une routine calme comme respiration lente ou lecture, et allège un peu l’intensité de tes séances si ton sommeil est mauvais depuis plusieurs jours.";
+  }
 
   if (
     has(
@@ -923,11 +975,11 @@ function getCoachReply(question, context) {
   }
 
   if (has("semi", "semi-marathon", "semi marathon")) {
-    return "Pour préparer un semi, fais idéalement 3 à 4 sorties par semaine : 1 footing facile, 1 séance de qualité, 1 sortie longue progressive, et éventuellement 1 sortie récupération. Augmente le volume petit à petit sans brûler les étapes.";
+    return "Pour préparer un semi, fais idéalement 3 à 4 sorties par semaine : un footing facile, une séance de qualité, une sortie longue progressive, et éventuellement une sortie récupération. Augmente le volume petit à petit sans brûler les étapes.";
   }
 
   if (has("10 km", "10km")) {
-    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil et un peu de vitesse. Une bonne base : 1 footing facile, 1 séance tempo ou seuil, 1 séance plus rythmée, et 1 sortie un peu plus longue.";
+    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil et un peu de vitesse. Une bonne base : un footing facile, une séance tempo ou seuil, une séance plus rythmée, et une sortie un peu plus longue.";
   }
 
   if (has("5 km", "5km")) {
@@ -969,10 +1021,16 @@ function getCoachReply(question, context) {
       "nutrition",
       "repas",
       "protéine",
-      "glucide"
+      "protéines",
+      "glucide",
+      "glucides"
     )
   ) {
     return "Pour bien courir, garde une alimentation simple : assez de protéines, des glucides de qualité, des fruits, des légumes et une bonne hydratation. Évite surtout les excès et le désordre.";
+  }
+
+  if (has("stress", "angoisse", "anxiété", "anxiete", "pression")) {
+    return "Si tu te sens stressé, baisse un peu la pression mentale. Reviens à des choses simples : respiration, routine stable, séance facile, objectif court terme. Le stress consomme aussi de l’énergie, donc il faut parfois alléger pour mieux repartir.";
   }
 
   if (has("bonjour", "salut", "hello", "coucou")) {
@@ -994,7 +1052,7 @@ function generateSmartFallback(question, context) {
   }
 
   if (q.includes("comment")) {
-    return "Je peux t’aider précisément. Reformule juste ton objectif en une phrase simple, par exemple : comment progresser sur 10 km, comment perdre du poids, ou comment préparer un semi.";
+    return "Je peux t’aider précisément. Reformule juste ton objectif en une phrase simple, par exemple : comment progresser sur 10 km, comment perdre du poids, comment mieux dormir, ou comment préparer un semi.";
   }
 
   if (q.includes("objectif")) {
@@ -1002,6 +1060,7 @@ function generateSmartFallback(question, context) {
   }
 
   return `Je peux déjà t’aider sur :
+- sommeil
 - perte de poids
 - 5 km
 - 10 km
@@ -1010,12 +1069,14 @@ function generateSmartFallback(question, context) {
 - récupération
 - allure
 - fractionné
+- motivation
 - séance du jour
 
 Essaie une question simple comme :
 - comment perdre du poids
 - plan pour mon semi
 - je suis fatigué
+- j’ai du mal à dormir
 - quoi faire aujourd’hui`;
 }
 
