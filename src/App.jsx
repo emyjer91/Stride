@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -168,6 +168,11 @@ function Run({ runType, setRunType, duration, setDuration }) {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceReady, setVoiceReady] = useState(false);
+  const [announceSplits, setAnnounceSplits] = useState(true);
+
+  const lastAnnouncedMinuteRef = useRef(null);
 
   const types = ["Footing facile", "Endurance", "Fractionné", "Sortie longue"];
   const durations = [20, 30, 45, 60];
@@ -202,26 +207,67 @@ function Run({ runType, setRunType, duration, setDuration }) {
   }, [isRunning, isPaused, targetSeconds]);
 
   useEffect(() => {
-    if (elapsedSeconds >= targetSeconds && targetSeconds > 0) {
+    if (elapsedSeconds >= targetSeconds && targetSeconds > 0 && isRunning) {
       setIsRunning(false);
       setIsPaused(false);
+      speak(
+        voiceEnabled,
+        `Séance terminée. Bravo. Tu as complété ${duration} minutes de ${runType.toLowerCase()}.`
+      );
     }
-  }, [elapsedSeconds, targetSeconds]);
+  }, [elapsedSeconds, targetSeconds, isRunning, voiceEnabled, duration, runType]);
+
+  useEffect(() => {
+    if (!isRunning || !announceSplits || elapsedSeconds === 0) return;
+
+    const currentMinute = Math.floor(elapsedSeconds / 60);
+    const exactFiveMinuteMark = elapsedSeconds % 300 === 0;
+
+    if (exactFiveMinuteMark && currentMinute > 0 && lastAnnouncedMinuteRef.current !== currentMinute) {
+      lastAnnouncedMinuteRef.current = currentMinute;
+      const remainingMinutes = Math.max(Math.ceil((targetSeconds - elapsedSeconds) / 60), 0);
+      speak(
+        voiceEnabled,
+        `${currentMinute} minutes effectuées. Il reste environ ${remainingMinutes} minutes.`
+      );
+    }
+  }, [elapsedSeconds, isRunning, announceSplits, targetSeconds, voiceEnabled]);
+
+  function unlockVoice() {
+    const ok = primeSpeech();
+    setVoiceReady(ok);
+    if (ok) {
+      speak(true, "Voix STRIDE activée.");
+    }
+  }
 
   function handleStart() {
     setElapsedSeconds(0);
     setIsRunning(true);
     setIsPaused(false);
+    lastAnnouncedMinuteRef.current = null;
+    speak(
+      voiceEnabled,
+      `Séance démarrée. ${runType}. Objectif ${duration} minutes. Bonne séance.`
+    );
   }
 
   function handlePauseResume() {
-    setIsPaused((prev) => !prev);
+    if (isPaused) {
+      setIsPaused(false);
+      speak(voiceEnabled, "Séance reprise.");
+    } else {
+      setIsPaused(true);
+      speak(voiceEnabled, "Séance en pause.");
+    }
   }
 
   function handleStop() {
     setIsRunning(false);
     setIsPaused(false);
     setElapsedSeconds(0);
+    lastAnnouncedMinuteRef.current = null;
+    speak(voiceEnabled, "Séance arrêtée.");
   }
 
   function handleChangeType(item) {
@@ -229,6 +275,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setIsRunning(false);
     setIsPaused(false);
     setElapsedSeconds(0);
+    lastAnnouncedMinuteRef.current = null;
   }
 
   function handleChangeDuration(item) {
@@ -236,6 +283,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setIsRunning(false);
     setIsPaused(false);
     setElapsedSeconds(0);
+    lastAnnouncedMinuteRef.current = null;
   }
 
   const timeText = formatTime(elapsedSeconds);
@@ -258,6 +306,62 @@ function Run({ runType, setRunType, duration, setDuration }) {
       </p>
 
       <Card style={{ marginTop: 18 }}>
+        <Label>Voix coach</Label>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <button
+            onClick={unlockVoice}
+            style={secondaryButtonStyle}
+          >
+            {voiceReady ? "Voix prête" : "Activer la voix"}
+          </button>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+            }}
+          >
+            <button
+              onClick={() => setVoiceEnabled((v) => !v)}
+              style={{
+                ...secondaryButtonStyle,
+                background: voiceEnabled
+                  ? "rgba(124,92,255,0.18)"
+                  : "rgba(255,255,255,0.04)",
+                border: voiceEnabled
+                  ? "1px solid rgba(124,92,255,0.9)"
+                  : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              {voiceEnabled ? "Voix ON" : "Voix OFF"}
+            </button>
+
+            <button
+              onClick={() => setAnnounceSplits((v) => !v)}
+              style={{
+                ...secondaryButtonStyle,
+                background: announceSplits
+                  ? "rgba(124,92,255,0.18)"
+                  : "rgba(255,255,255,0.04)",
+                border: announceSplits
+                  ? "1px solid rgba(124,92,255,0.9)"
+                  : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              {announceSplits ? "Annonces 5 min ON" : "Annonces 5 min OFF"}
+            </button>
+          </div>
+
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+            Active d’abord la voix, puis démarre la séance. Sur certains téléphones,
+            le navigateur demande un premier clic pour autoriser la synthèse vocale.
+          </div>
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
         <Label>Chrono live</Label>
         <div
           style={{
@@ -600,6 +704,37 @@ function formatTime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function primeSpeech() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return false;
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(" ");
+    utterance.volume = 0;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function speak(enabled, text) {
+  if (!enabled) return;
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "fr-FR";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    // no-op
+  }
 }
 
 const primaryButtonStyle = {
