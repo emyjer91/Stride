@@ -139,27 +139,6 @@ function Home({ onStartRun, onOpenCoach }) {
       >
         Voir mon coach IA
       </button>
-
-      <Card style={{ marginTop: 16 }}>
-        <Label>Séance du jour</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          Footing progressif • 35 min
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 12 }}>
-        <Label>Progression</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          +12% sur les 4 dernières semaines
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 12 }}>
-        <Label>Communauté</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          248 coureurs actifs aujourd’hui
-        </div>
-      </Card>
     </div>
   );
 }
@@ -175,6 +154,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
 
   const lastPositionRef = useRef(null);
   const lastTimestampRef = useRef(null);
+
   const types = ["Footing facile", "Endurance", "Fractionné", "Sortie longue"];
   const durations = [20, 30, 45, 60];
 
@@ -215,64 +195,35 @@ function Run({ runType, setRunType, duration, setDuration }) {
     }
   }, [elapsedSeconds, targetSeconds, isRunning]);
 
-function startGPS() {
-  if (!navigator.geolocation) {
-    alert("GPS non supporté sur cet appareil.");
-    return;
-  }
-
-  const id = navigator.geolocation.watchPosition(
-    (pos) => {
-      const { latitude, longitude, speed: currentSpeed } = pos.coords;
-      const current = { latitude, longitude };
-      const now = pos.timestamp;
-
-      if (lastPositionRef.current) {
-        const dist = getDistance(lastPositionRef.current, current);
-        setDistance((d) => d + dist);
-
-        if (currentSpeed != null && !Number.isNaN(currentSpeed)) {
-          setSpeed((currentSpeed * 3.6).toFixed(1));
-        } else if (lastTimestampRef.current) {
-          const deltaSeconds = (now - lastTimestampRef.current) / 1000;
-          if (deltaSeconds > 0) {
-            const speedKmH = (dist / deltaSeconds) * 3600;
-            setSpeed(speedKmH.toFixed(1));
-          }
-        }
-      }
-
-      lastPositionRef.current = current;
-      lastTimestampRef.current = now;
-    },
-    (err) => {
-      console.log("Erreur GPS :", err);
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 1000,
-      timeout: 10000,
+  function startGPS() {
+    if (!navigator.geolocation) {
+      alert("GPS non supporté sur cet appareil.");
+      return;
     }
-  );
-
-  setWatchId(id);
-}
 
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, speed: currentSpeed } = pos.coords;
         const current = { latitude, longitude };
+        const now = pos.timestamp;
 
         if (lastPositionRef.current) {
           const dist = getDistance(lastPositionRef.current, current);
           setDistance((d) => d + dist);
+
+          if (currentSpeed != null && !Number.isNaN(currentSpeed)) {
+            setSpeed((currentSpeed * 3.6).toFixed(1));
+          } else if (lastTimestampRef.current) {
+            const deltaSeconds = (now - lastTimestampRef.current) / 1000;
+            if (deltaSeconds > 0) {
+              const speedKmH = (dist / deltaSeconds) * 3600;
+              setSpeed(speedKmH.toFixed(1));
+            }
+          }
         }
 
         lastPositionRef.current = current;
-
-        if (currentSpeed != null) {
-          setSpeed((currentSpeed * 3.6).toFixed(1));
-        }
+        lastTimestampRef.current = now;
       },
       (err) => {
         console.log("Erreur GPS :", err);
@@ -293,6 +244,7 @@ function startGPS() {
       setWatchId(null);
     }
     lastPositionRef.current = null;
+    lastTimestampRef.current = null;
   }
 
   function handleStart() {
@@ -507,6 +459,33 @@ function startGPS() {
 }
 
 function Coach({ runType, duration, onGoRun }) {
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content:
+        "Salut. Je suis ton coach STRIDE local. Pose-moi une question running, objectif, semi, 10 km, perte de poids ou récupération.",
+    },
+  ]);
+
+  function sendMessage() {
+    const text = input.trim();
+    if (!text) return;
+
+    const userMessage = { role: "user", content: text };
+    const answer = getCoachReply(text, { runType, duration });
+    const botMessage = { role: "assistant", content: answer };
+
+    setMessages((prev) => [...prev, userMessage, botMessage]);
+    setInput("");
+  }
+
+  function onKeyDown(e) {
+    if (e.key === "Enter") {
+      sendMessage();
+    }
+  }
+
   return (
     <div>
       <h1 style={{ fontSize: 36, margin: 0, fontWeight: 800 }}>Coach IA</h1>
@@ -548,6 +527,92 @@ function Coach({ runType, duration, onGoRun }) {
       <button onClick={onGoRun} style={{ ...primaryButtonStyle, marginTop: 18 }}>
         Aller à ma séance
       </button>
+
+      <Card style={{ marginTop: 18, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: 18, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <Label>Parle à ton coach</Label>
+        </div>
+
+        <div
+          style={{
+            maxHeight: 360,
+            overflowY: "auto",
+            padding: 16,
+            display: "grid",
+            gap: 12,
+          }}
+        >
+          {messages.map((msg, index) => {
+            const isUser = msg.role === "user";
+            return (
+              <div
+                key={index}
+                style={{
+                  display: "flex",
+                  justifyContent: isUser ? "flex-end" : "flex-start",
+                }}
+              >
+                <div
+                  style={{
+                    maxWidth: "85%",
+                    padding: "14px 16px",
+                    borderRadius: 18,
+                    lineHeight: 1.45,
+                    fontSize: 17,
+                    background: isUser
+                      ? "linear-gradient(135deg, rgba(147,51,234,0.30), rgba(37,99,235,0.30))"
+                      : "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: 10,
+            padding: 16,
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Pose ta question..."
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "white",
+              borderRadius: 16,
+              padding: "14px 14px",
+              fontSize: 16,
+              outline: "none",
+            }}
+          />
+
+          <button
+            onClick={sendMessage}
+            style={{
+              border: "none",
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #9333ea, #2563eb)",
+              color: "white",
+              fontWeight: 800,
+              padding: "0 18px",
+              fontSize: 18,
+            }}
+          >
+            →
+          </button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -719,6 +784,56 @@ function getDistance(pos1, pos2) {
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+function getCoachReply(question, context) {
+  const q = question.toLowerCase();
+
+  if (q.includes("perdre du poids") || q.includes("maigrir") || q.includes("mincir")) {
+    return "Pour perdre du poids, vise surtout la régularité : 3 à 5 séances par semaine, majorité en endurance facile, un léger déficit calorique, beaucoup de marche au quotidien, et une bonne récupération. Évite de vouloir aller trop vite dès le départ.";
+  }
+
+  if (q.includes("semi")) {
+    return "Pour préparer un semi, construis ta base avec 3 à 4 sorties par semaine : 1 footing facile, 1 séance de qualité, 1 sortie longue progressive, et éventuellement 1 séance récupération. Monte le volume progressivement et garde une semaine plus légère régulièrement.";
+  }
+
+  if (q.includes("10 km") || q.includes("10km")) {
+    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil, et un peu de vitesse. Une bonne structure : 1 footing facile, 1 séance tempo ou seuil, 1 séance plus rythmée type fractionné, et 1 sortie plus longue légère.";
+  }
+
+  if (q.includes("5 km") || q.includes("5km")) {
+    return "Pour un 5 km, garde une base d’endurance mais ajoute du travail de vitesse et de VO2. Il faut être capable de courir vite, mais aussi de tenir ton allure sans exploser après le 2e ou 3e kilomètre.";
+  }
+
+  if (q.includes("fatigué") || q.includes("fatigue") || q.includes("crevé")) {
+    return "Si tu te sens fatigué, baisse l’intensité aujourd’hui. Un footing facile très court ou du repos peut être plus rentable qu’une grosse séance mal absorbée. Le but est de progresser, pas de t’épuiser.";
+  }
+
+  if (q.includes("récup") || q.includes("recup") || q.includes("récupération")) {
+    return "Pour bien récupérer : sommeil, hydratation, alimentation correcte, et intensité facile le lendemain d’une séance dure. Une bonne récupération améliore directement la qualité des prochaines séances.";
+  }
+
+  if (q.includes("aujourd") || q.includes("quoi faire") || q.includes("séance du jour")) {
+    return `Aujourd’hui, je te recommande plutôt une séance de ${context.runType.toLowerCase()} sur ${context.duration} minutes, en restant propre techniquement et sans te griller inutilement.`;
+  }
+
+  if (q.includes("allure")) {
+    return "Pour choisir ton allure, pars toujours légèrement plus facile que trop vite. Si tu termines solide et propre, c’est beaucoup mieux qu’un départ trop ambitieux.";
+  }
+
+  if (q.includes("fractionné")) {
+    return "Le fractionné doit rester maîtrisé. Il sert à travailler vite avec de la qualité, pas à finir détruit à chaque fois. Échauffe-toi bien, récupère correctement, et garde de la marge sur les premières répétitions.";
+  }
+
+  if (q.includes("sortie longue")) {
+    return "La sortie longue construit ton endurance, ta résistance et ta capacité à durer. Commence facile, sois régulier, et n’essaie pas de la transformer en course à chaque fois.";
+  }
+
+  if (q.includes("bonjour") || q.includes("salut") || q.includes("hello")) {
+    return "Salut. Dis-moi ton objectif et ton état de forme, et je te proposerai une réponse claire et utile.";
+  }
+
+  return "Je peux déjà bien t’aider sur : perte de poids, 5 km, 10 km, semi, fatigue, récupération, allure, fractionné et séance du jour. Pose-moi une question plus précise sur un de ces sujets.";
 }
 
 const primaryButtonStyle = {
