@@ -168,11 +168,12 @@ function Run({ runType, setRunType, duration, setDuration }) {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [voiceReady, setVoiceReady] = useState(false);
-  const [announceSplits, setAnnounceSplits] = useState(true);
 
-  const lastAnnouncedMinuteRef = useRef(null);
+  const [distance, setDistance] = useState(0);
+  const [speed, setSpeed] = useState(0);
+  const [watchId, setWatchId] = useState(null);
+
+  const lastPositionRef = useRef(null);
 
   const types = ["Footing facile", "Endurance", "Fractionné", "Sortie longue"];
   const durations = [20, 30, 45, 60];
@@ -210,55 +211,69 @@ function Run({ runType, setRunType, duration, setDuration }) {
     if (elapsedSeconds >= targetSeconds && targetSeconds > 0 && isRunning) {
       setIsRunning(false);
       setIsPaused(false);
-      speak(
-        voiceEnabled,
-        `Séance terminée. Bravo. Tu as complété ${duration} minutes de ${runType.toLowerCase()}.`
-      );
+      stopGPS();
     }
-  }, [elapsedSeconds, targetSeconds, isRunning, voiceEnabled, duration, runType]);
+  }, [elapsedSeconds, targetSeconds, isRunning]);
 
-  useEffect(() => {
-    if (!isRunning || !announceSplits || elapsedSeconds === 0) return;
-
-    const currentMinute = Math.floor(elapsedSeconds / 60);
-    const exactFiveMinuteMark = elapsedSeconds % 300 === 0;
-
-    if (exactFiveMinuteMark && currentMinute > 0 && lastAnnouncedMinuteRef.current !== currentMinute) {
-      lastAnnouncedMinuteRef.current = currentMinute;
-      const remainingMinutes = Math.max(Math.ceil((targetSeconds - elapsedSeconds) / 60), 0);
-      speak(
-        voiceEnabled,
-        `${currentMinute} minutes effectuées. Il reste environ ${remainingMinutes} minutes.`
-      );
+  function startGPS() {
+    if (!navigator.geolocation) {
+      alert("GPS non supporté sur cet appareil.");
+      return;
     }
-  }, [elapsedSeconds, isRunning, announceSplits, targetSeconds, voiceEnabled]);
 
-  function unlockVoice() {
-    const ok = primeSpeech();
-    setVoiceReady(ok);
-    if (ok) {
-      speak(true, "Voix STRIDE activée.");
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, speed: currentSpeed } = pos.coords;
+        const current = { latitude, longitude };
+
+        if (lastPositionRef.current) {
+          const dist = getDistance(lastPositionRef.current, current);
+          setDistance((d) => d + dist);
+        }
+
+        lastPositionRef.current = current;
+
+        if (currentSpeed != null) {
+          setSpeed((currentSpeed * 3.6).toFixed(1));
+        }
+      },
+      (err) => {
+        console.log("Erreur GPS :", err);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000,
+      }
+    );
+
+    setWatchId(id);
+  }
+
+  function stopGPS() {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
     }
+    lastPositionRef.current = null;
   }
 
   function handleStart() {
     setElapsedSeconds(0);
+    setDistance(0);
+    setSpeed(0);
     setIsRunning(true);
     setIsPaused(false);
-    lastAnnouncedMinuteRef.current = null;
-    speak(
-      voiceEnabled,
-      `Séance démarrée. ${runType}. Objectif ${duration} minutes. Bonne séance.`
-    );
+    startGPS();
   }
 
   function handlePauseResume() {
     if (isPaused) {
       setIsPaused(false);
-      speak(voiceEnabled, "Séance reprise.");
+      startGPS();
     } else {
       setIsPaused(true);
-      speak(voiceEnabled, "Séance en pause.");
+      stopGPS();
     }
   }
 
@@ -266,24 +281,19 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setIsRunning(false);
     setIsPaused(false);
     setElapsedSeconds(0);
-    lastAnnouncedMinuteRef.current = null;
-    speak(voiceEnabled, "Séance arrêtée.");
+    setDistance(0);
+    setSpeed(0);
+    stopGPS();
   }
 
   function handleChangeType(item) {
     setRunType(item);
-    setIsRunning(false);
-    setIsPaused(false);
-    setElapsedSeconds(0);
-    lastAnnouncedMinuteRef.current = null;
+    handleStop();
   }
 
   function handleChangeDuration(item) {
     setDuration(item);
-    setIsRunning(false);
-    setIsPaused(false);
-    setElapsedSeconds(0);
-    lastAnnouncedMinuteRef.current = null;
+    handleStop();
   }
 
   const timeText = formatTime(elapsedSeconds);
@@ -306,63 +316,8 @@ function Run({ runType, setRunType, duration, setDuration }) {
       </p>
 
       <Card style={{ marginTop: 18 }}>
-        <Label>Voix coach</Label>
+        <Label>Chrono live + GPS</Label>
 
-        <div style={{ display: "grid", gap: 10 }}>
-          <button
-            onClick={unlockVoice}
-            style={secondaryButtonStyle}
-          >
-            {voiceReady ? "Voix prête" : "Activer la voix"}
-          </button>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 10,
-            }}
-          >
-            <button
-              onClick={() => setVoiceEnabled((v) => !v)}
-              style={{
-                ...secondaryButtonStyle,
-                background: voiceEnabled
-                  ? "rgba(124,92,255,0.18)"
-                  : "rgba(255,255,255,0.04)",
-                border: voiceEnabled
-                  ? "1px solid rgba(124,92,255,0.9)"
-                  : "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              {voiceEnabled ? "Voix ON" : "Voix OFF"}
-            </button>
-
-            <button
-              onClick={() => setAnnounceSplits((v) => !v)}
-              style={{
-                ...secondaryButtonStyle,
-                background: announceSplits
-                  ? "rgba(124,92,255,0.18)"
-                  : "rgba(255,255,255,0.04)",
-                border: announceSplits
-                  ? "1px solid rgba(124,92,255,0.9)"
-                  : "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              {announceSplits ? "Annonces 5 min ON" : "Annonces 5 min OFF"}
-            </button>
-          </div>
-
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-            Active d’abord la voix, puis démarre la séance. Sur certains téléphones,
-            le navigateur demande un premier clic pour autoriser la synthèse vocale.
-          </div>
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 16 }}>
-        <Label>Chrono live</Label>
         <div
           style={{
             fontSize: 44,
@@ -378,10 +333,18 @@ function Run({ runType, setRunType, duration, setDuration }) {
           style={{
             fontSize: 14,
             color: "rgba(255,255,255,0.65)",
-            marginBottom: 14,
+            marginBottom: 10,
           }}
         >
           Temps restant : {remainingText}
+        </div>
+
+        <div style={{ fontSize: 14, marginBottom: 6 }}>
+          Distance : {distance.toFixed(2)} km
+        </div>
+
+        <div style={{ fontSize: 14, marginBottom: 14 }}>
+          Vitesse : {speed || 0} km/h
         </div>
 
         <div
@@ -706,35 +669,19 @@ function formatTime(totalSeconds) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function primeSpeech() {
-  if (typeof window === "undefined" || !window.speechSynthesis) return false;
+function getDistance(pos1, pos2) {
+  const R = 6371;
+  const dLat = (pos2.latitude - pos1.latitude) * (Math.PI / 180);
+  const dLon = (pos2.longitude - pos1.longitude) * (Math.PI / 180);
 
-  try {
-    const utterance = new SpeechSynthesisUtterance(" ");
-    utterance.volume = 0;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-    return true;
-  } catch {
-    return false;
-  }
-}
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((pos1.latitude * Math.PI) / 180) *
+      Math.cos((pos2.latitude * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
 
-function speak(enabled, text) {
-  if (!enabled) return;
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
-
-  try {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "fr-FR";
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  } catch {
-    // no-op
-  }
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 const primaryButtonStyle = {
