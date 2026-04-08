@@ -4,7 +4,15 @@ export default function App() {
   const [tab, setTab] = useState("home");
 
   return (
-    <div style={{ padding: 20, color: "white" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#0b0b0b",
+        color: "white",
+        padding: 20,
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
       <h1>STRIDE 🔥</h1>
 
       {tab === "home" && <p>Accueil</p>}
@@ -13,7 +21,7 @@ export default function App() {
       {tab === "social" && <p>Social</p>}
       {tab === "profile" && <p>Profil</p>}
 
-      <div style={{ marginTop: 20 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 20, flexWrap: "wrap" }}>
         <button onClick={() => setTab("home")}>Home</button>
         <button onClick={() => setTab("run")}>Run</button>
         <button onClick={() => setTab("coach")}>Coach</button>
