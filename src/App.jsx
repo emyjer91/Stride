@@ -555,15 +555,67 @@ function Screen({ title, subtitle, emoji }) { return ( <div style={{ padding: "2
 </div>
 
 ); }
+function BottomNav({ tab, setTab }) {
+  const items = [
+    ["home", "Accueil"],
+    ["run", "Run"],
+    ["coach", "Coach"],
+    ["social", "Social"],
+    ["profile", "Profil"],
+  ];
 
-function BottomNav({ tab, setTab }) { const items = [ ["home", "Accueil"], ["run", "Run"], ["coach", "Coach"], ["social", "Social"], ["profile", "Profil"], ];
-
-return ( <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "0 14px 14px", background: "linear-gradient(to top, rgba(0,0,0,0.45), transparent)", }} > <div style={{ width: "100%", maxWidth: 430, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, background: "rgba(12,12,12,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: 8, backdropFilter: "blur(10px)", }} > {items.map(([key, label]) => { const active = tab === key; return ( <button key={key} onClick={() => setTab(key)} style={{ border: "none", borderRadius: 14, padding: "10px 6px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: active ? "white" : "rgba(255,255,255,0.55)", background: active ? "linear-gradient(135deg, #9333ea, #2563eb)" : "transparent", transition: "all 0.18s ease", }} > {label} </button> ); })} </div> </div> ); }
-
-function GlassCard({ children, style = {} }) { return ( <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 22, padding: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.18)", ...style, }} > {children} </div> ); }
-
-function MutedLabel({ children }) { return ( <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 8, }} > {children} </div> ); }
-
-function BigValue({ children }) { return <div style={{ fontSize: 30, fontWeight: 800 }}>{children}</div>; }
-
-function hexToRgba(hex, alpha) { const clean = hex.replace("#", ""); const bigint = parseInt(clean, 16); const r = (bigint >> 16) & 255; const g = (bigint >> 8) & 255; const b = bigint & 255; return rgba(${r}, ${g}, ${b}, ${alpha}); }
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        display: "flex",
+        justifyContent: "center",
+        padding: "0 14px 14px",
+        background: "linear-gradient(to top, rgba(0,0,0,0.45), transparent)",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 430,
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: 8,
+          background: "rgba(12,12,12,0.95)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 20,
+          padding: 8,
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        {items.map(([key, label]) => {
+          const active = tab === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              style={{
+                border: "none",
+                borderRadius: 14,
+                padding: "10px 6px",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                color: active ? "white" : "rgba(255,255,255,0.55)",
+                background: active
+                  ? "linear-gradient(135deg, #9333ea, #2563eb)"
+                  : "transparent",
+                transition: "all 0.18s ease",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
