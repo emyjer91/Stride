@@ -139,27 +139,6 @@ function Home({ onStartRun, onOpenCoach }) {
       >
         Voir mon coach IA
       </button>
-
-      <Card style={{ marginTop: 16 }}>
-        <Label>Séance du jour</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          Footing progressif • 35 min
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 12 }}>
-        <Label>Progression</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          +12% sur les 4 dernières semaines
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 12 }}>
-        <Label>Communauté</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          248 coureurs actifs aujourd’hui
-        </div>
-      </Card>
     </div>
   );
 }
@@ -334,7 +313,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
     }
   }
 
-  function handleStop() {
+  function handleStop(withVoice = true) {
     setIsRunning(false);
     setIsPaused(false);
     setElapsedSeconds(0);
@@ -342,17 +321,20 @@ function Run({ runType, setRunType, duration, setDuration }) {
     setSpeed(0);
     lastAnnouncedMinuteRef.current = null;
     stopGPS();
-    speak(voiceEnabled, "Séance arrêtée.");
+
+    if (withVoice) {
+      speak(voiceEnabled, "Séance arrêtée.");
+    }
   }
 
   function handleChangeType(item) {
     setRunType(item);
-    handleStop();
+    handleStop(false);
   }
 
   function handleChangeDuration(item) {
     setDuration(item);
-    handleStop();
+    handleStop(false);
   }
 
   const timeText = formatTime(elapsedSeconds);
@@ -497,7 +479,10 @@ function Run({ runType, setRunType, duration, setDuration }) {
                 {isPaused ? "Reprendre" : "Pause"}
               </button>
 
-              <button onClick={handleStop} style={secondaryButtonStyle}>
+              <button
+                onClick={() => handleStop(true)}
+                style={secondaryButtonStyle}
+              >
                 Arrêter
               </button>
             </>
