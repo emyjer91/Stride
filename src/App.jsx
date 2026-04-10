@@ -5,6 +5,76 @@ export default function App() {
   const [runType, setRunType] = useState("Footing facile");
   const [duration, setDuration] = useState(30);
 
+  const [companionProfile, setCompanionProfile] = useState({
+    name: "Alicia",
+    identity: "femme",
+    age: 25,
+    role: "compagnon virtuel",
+    tone: "chaleureux",
+    passions: "running, bien-être, progression, motivation",
+    hobbies: "course, lecture, musique, coaching",
+  });
+
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState("");
+
+  useEffect(() => {
+    function loadVoices() {
+      if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+      const voices = window.speechSynthesis.getVoices() || [];
+      const frenchVoices = voices.filter((voice) =>
+        voice.lang?.toLowerCase().startsWith("fr")
+      );
+
+      const finalVoices = frenchVoices.length > 0 ? frenchVoices : voices;
+
+      setAvailableVoices(finalVoices);
+
+      if (!selectedVoiceURI && finalVoices.length > 0) {
+        const femaleKeywords = [
+          "female",
+          "woman",
+          "femme",
+          "marie",
+          "amelie",
+          "audrey",
+          "julie",
+          "lea",
+          "sarah",
+          "claire",
+          "celine",
+          "virginie",
+          "hortense",
+          "susan",
+          "zira",
+          "alice",
+        ];
+
+        const defaultFemaleVoice =
+          finalVoices.find((voice) =>
+            femaleKeywords.some((keyword) =>
+              voice.name.toLowerCase().includes(keyword)
+            )
+          ) || finalVoices[0];
+
+        setSelectedVoiceURI(defaultFemaleVoice.voiceURI);
+      }
+    }
+
+    loadVoices();
+
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, [selectedVoiceURI]);
+
   function handleStartFromHome() {
     setTab("run");
   }
@@ -24,6 +94,7 @@ export default function App() {
           <Home
             onStartRun={handleStartFromHome}
             onOpenCoach={() => setTab("coach")}
+            companionProfile={companionProfile}
           />
         )}
 
@@ -33,6 +104,9 @@ export default function App() {
             setRunType={setRunType}
             duration={duration}
             setDuration={setDuration}
+            availableVoices={availableVoices}
+            selectedVoiceURI={selectedVoiceURI}
+            setSelectedVoiceURI={setSelectedVoiceURI}
           />
         )}
 
@@ -41,6 +115,10 @@ export default function App() {
             runType={runType}
             duration={duration}
             onGoRun={() => setTab("run")}
+            companionProfile={companionProfile}
+            availableVoices={availableVoices}
+            selectedVoiceURI={selectedVoiceURI}
+            setSelectedVoiceURI={setSelectedVoiceURI}
           />
         )}
 
@@ -52,7 +130,15 @@ export default function App() {
         )}
 
         {tab === "profile" && (
-          <Profile duration={duration} runType={runType} />
+          <Profile
+            duration={duration}
+            runType={runType}
+            companionProfile={companionProfile}
+            setCompanionProfile={setCompanionProfile}
+            availableVoices={availableVoices}
+            selectedVoiceURI={selectedVoiceURI}
+            setSelectedVoiceURI={setSelectedVoiceURI}
+          />
         )}
       </div>
 
@@ -61,7 +147,7 @@ export default function App() {
   );
 }
 
-function Home({ onStartRun, onOpenCoach }) {
+function Home({ onStartRun, onOpenCoach, companionProfile }) {
   return (
     <div>
       <Badge>STRIDE • Beta</Badge>
@@ -77,7 +163,7 @@ function Home({ onStartRun, onOpenCoach }) {
       >
         Run smarter.
         <br />
-        Progress faster.
+        Live stronger.
       </h1>
 
       <p
@@ -88,8 +174,8 @@ function Home({ onStartRun, onOpenCoach }) {
           lineHeight: 1.55,
         }}
       >
-        Le coach running social nouvelle génération pour suivre tes séances,
-        progresser plus vite et rester motivé chaque jour.
+        Ton coach et compagnon virtuel pour progresser, garder confiance et
+        avancer avec plus d’élan chaque jour.
       </p>
 
       <div
@@ -113,16 +199,17 @@ function Home({ onStartRun, onOpenCoach }) {
             boxShadow: "0 14px 30px rgba(80,80,255,0.25)",
           }}
         >
-          <Label light>Niveau</Label>
-          <Big>12</Big>
+          <Label light>Présence</Label>
+          <Big>{companionProfile.name}</Big>
         </div>
       </div>
 
       <Card style={{ marginTop: 16 }}>
-        <Label>Coach IA</Label>
+        <Label>{companionProfile.name}</Label>
         <div style={{ fontSize: 18, lineHeight: 1.45, fontWeight: 800 }}>
-          “Aujourd’hui, fais une sortie facile de 35 minutes pour garder de la
-          fraîcheur.”
+          “Tu n’as pas besoin d’être parfait pour avancer. Une bonne direction,
+          un peu d’envie et de constance peuvent déjà déplacer énormément de
+          choses.”
         </div>
       </Card>
 
@@ -137,27 +224,33 @@ function Home({ onStartRun, onOpenCoach }) {
           marginTop: 10,
         }}
       >
-        Voir mon coach IA
+        Parler à {companionProfile.name}
       </button>
     </div>
   );
 }
 
-function Run({ runType, setRunType, duration, setDuration }) {
+function Run({
+  runType,
+  setRunType,
+  duration,
+  setDuration,
+  availableVoices,
+  selectedVoiceURI,
+  setSelectedVoiceURI,
+}) {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const [distance, setDistance] = useState(0);
   const [speed, setSpeed] = useState(0);
-  const [watchId, setWatchId] = useState(null);
-
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceReady, setVoiceReady] = useState(false);
   const [announceSplits, setAnnounceSplits] = useState(true);
-
   const [routePoints, setRoutePoints] = useState([]);
 
+  const watchIdRef = useRef(null);
   const lastPositionRef = useRef(null);
   const lastTimestampRef = useRef(null);
   const lastAnnouncedMinuteRef = useRef(null);
@@ -207,10 +300,21 @@ function Run({ runType, setRunType, duration, setDuration }) {
       stopGPS();
       speak(
         voiceEnabled,
-        `Séance terminée. Bravo. Tu as complété ${duration} minutes de ${runType.toLowerCase()}.`
+        `Séance terminée. Bravo. Tu as complété ${duration} minutes de ${runType.toLowerCase()}.`,
+        selectedVoiceURI,
+        availableVoices
       );
     }
-  }, [elapsedSeconds, targetSeconds, isRunning, voiceEnabled, duration, runType]);
+  }, [
+    elapsedSeconds,
+    targetSeconds,
+    isRunning,
+    voiceEnabled,
+    duration,
+    runType,
+    selectedVoiceURI,
+    availableVoices,
+  ]);
 
   useEffect(() => {
     if (!isRunning || !announceSplits || elapsedSeconds === 0) return;
@@ -230,16 +334,31 @@ function Run({ runType, setRunType, duration, setDuration }) {
       );
       speak(
         voiceEnabled,
-        `${currentMinute} minutes effectuées. Il reste environ ${remainingMinutes} minutes.`
+        `${currentMinute} minutes effectuées. Il reste environ ${remainingMinutes} minutes.`,
+        selectedVoiceURI,
+        availableVoices
       );
     }
-  }, [elapsedSeconds, isRunning, announceSplits, targetSeconds, voiceEnabled]);
+  }, [
+    elapsedSeconds,
+    isRunning,
+    announceSplits,
+    targetSeconds,
+    voiceEnabled,
+    selectedVoiceURI,
+    availableVoices,
+  ]);
 
   function unlockVoice() {
-    const ok = primeSpeech();
+    const ok = primeSpeech(selectedVoiceURI, availableVoices);
     setVoiceReady(ok);
     if (ok) {
-      speak(true, "Voix STRIDE activée.");
+      speak(
+        true,
+        "Voix STRIDE activée.",
+        selectedVoiceURI,
+        availableVoices
+      );
     }
   }
 
@@ -264,13 +383,17 @@ function Run({ runType, setRunType, duration, setDuration }) {
             setDistance((d) => d + dist);
           }
 
-          if (currentSpeed != null && !Number.isNaN(currentSpeed) && currentSpeed >= 0) {
-            setSpeed((currentSpeed * 3.6).toFixed(1));
+          if (
+            currentSpeed != null &&
+            !Number.isNaN(currentSpeed) &&
+            currentSpeed >= 0
+          ) {
+            setSpeed(Number((currentSpeed * 3.6).toFixed(1)));
           } else if (lastTimestampRef.current) {
             const deltaSeconds = (now - lastTimestampRef.current) / 1000;
             if (deltaSeconds > 0) {
               const speedKmH = (dist / deltaSeconds) * 3600;
-              setSpeed(speedKmH.toFixed(1));
+              setSpeed(Number(speedKmH.toFixed(1)));
             }
           }
         }
@@ -288,13 +411,13 @@ function Run({ runType, setRunType, duration, setDuration }) {
       }
     );
 
-    setWatchId(id);
+    watchIdRef.current = id;
   }
 
   function stopGPS() {
-    if (watchId !== null) {
-      navigator.geolocation.clearWatch(watchId);
-      setWatchId(null);
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
     lastPositionRef.current = null;
     lastTimestampRef.current = null;
@@ -311,7 +434,9 @@ function Run({ runType, setRunType, duration, setDuration }) {
     startGPS();
     speak(
       voiceEnabled,
-      `Séance démarrée. ${runType}. Objectif ${duration} minutes. Bonne séance.`
+      `Séance démarrée. ${runType}. Objectif ${duration} minutes. Bonne séance.`,
+      selectedVoiceURI,
+      availableVoices
     );
   }
 
@@ -319,11 +444,21 @@ function Run({ runType, setRunType, duration, setDuration }) {
     if (isPaused) {
       setIsPaused(false);
       startGPS();
-      speak(voiceEnabled, "Séance reprise.");
+      speak(
+        voiceEnabled,
+        "Séance reprise.",
+        selectedVoiceURI,
+        availableVoices
+      );
     } else {
       setIsPaused(true);
       stopGPS();
-      speak(voiceEnabled, "Séance en pause.");
+      speak(
+        voiceEnabled,
+        "Séance en pause.",
+        selectedVoiceURI,
+        availableVoices
+      );
     }
   }
 
@@ -338,7 +473,12 @@ function Run({ runType, setRunType, duration, setDuration }) {
     stopGPS();
 
     if (withVoice) {
-      speak(voiceEnabled, "Séance arrêtée.");
+      speak(
+        voiceEnabled,
+        "Séance arrêtée.",
+        selectedVoiceURI,
+        availableVoices
+      );
     }
   }
 
@@ -417,10 +557,40 @@ function Run({ runType, setRunType, duration, setDuration }) {
             </button>
           </div>
 
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-            Active d’abord la voix, puis démarre la séance. Sur certains
-            téléphones, le navigateur demande un premier clic pour autoriser la
-            synthèse vocale.
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+              Voix utilisée
+            </div>
+
+            <select
+              value={selectedVoiceURI}
+              onChange={(e) => setSelectedVoiceURI(e.target.value)}
+              style={inputStyle}
+            >
+              {availableVoices.map((voice) => (
+                <option
+                  key={voice.voiceURI}
+                  value={voice.voiceURI}
+                  style={{ color: "black" }}
+                >
+                  {voice.name} ({voice.lang})
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={() =>
+                speak(
+                  true,
+                  "Bonjour. Je suis la voix actuellement sélectionnée dans STRIDE.",
+                  selectedVoiceURI,
+                  availableVoices
+                )
+              }
+              style={secondaryButtonStyle}
+            >
+              Tester la voix
+            </button>
           </div>
         </div>
       </Card>
@@ -454,7 +624,7 @@ function Run({ runType, setRunType, duration, setDuration }) {
         </div>
 
         <div style={{ fontSize: 14, marginBottom: 6 }}>
-          Vitesse : {speed || 0} km/h
+          Vitesse : {(speed || 0).toFixed(1)} km/h
         </div>
 
         <div style={{ fontSize: 14, marginBottom: 14 }}>
@@ -677,171 +847,22 @@ function RouteMiniMap({ points }) {
   );
 }
 
-function Coach({ runType, duration, onGoRun }) {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content:
-        "Salut. Je suis ton coach STRIDE local. Je peux t’aider sur le sommeil, la fatigue, la perte de poids, le 5 km, le 10 km, le semi, l’allure, la récupération, la motivation et la séance du jour.",
-    },
-  ]);
-
-  function sendMessage() {
-    const text = input.trim();
-    if (!text) return;
-
-    const userMessage = { role: "user", content: text };
-    const answer = getCoachReply(text, { runType, duration });
-    const botMessage = { role: "assistant", content: answer };
-
-    setMessages((prev) => [...prev, userMessage, botMessage]);
-    setInput("");
+function Profile({
+  duration,
+  runType,
+  companionProfile,
+  setCompanionProfile,
+  availableVoices,
+  selectedVoiceURI,
+  setSelectedVoiceURI,
+}) {
+  function updateField(key, value) {
+    setCompanionProfile((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   }
 
-  function onKeyDown(e) {
-    if (e.key === "Enter") {
-      sendMessage();
-    }
-  }
-
-  return (
-    <div>
-      <h1 style={{ fontSize: 36, margin: 0, fontWeight: 800 }}>Coach IA</h1>
-
-      <p
-        style={{
-          color: "rgba(255,255,255,0.72)",
-          fontSize: 17,
-          lineHeight: 1.5,
-        }}
-      >
-        Un coach premium pour t’aider à mieux t’entraîner, récupérer et
-        progresser.
-      </p>
-
-      <Card style={{ marginTop: 22 }}>
-        <Label>Recommandation du jour</Label>
-        <div style={{ fontSize: 18, lineHeight: 1.45, fontWeight: 800 }}>
-          Aujourd’hui, ta meilleure option est une séance de type{" "}
-          {runType.toLowerCase()} sur {duration} minutes, avec départ progressif
-          et ressenti maîtrisé.
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 16 }}>
-        <Label>Charge récente</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          Correcte • équilibre à surveiller
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 16 }}>
-        <Label>Sommeil & récupération</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>
-          Bonne base, mais marge d’optimisation
-        </div>
-      </Card>
-
-      <button onClick={onGoRun} style={{ ...primaryButtonStyle, marginTop: 18 }}>
-        Aller à ma séance
-      </button>
-
-      <Card style={{ marginTop: 18, padding: 0, overflow: "hidden" }}>
-        <div
-          style={{
-            padding: 18,
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <Label>Parle à ton coach</Label>
-        </div>
-
-        <div
-          style={{
-            maxHeight: 360,
-            overflowY: "auto",
-            padding: 16,
-            display: "grid",
-            gap: 12,
-          }}
-        >
-          {messages.map((msg, index) => {
-            const isUser = msg.role === "user";
-            return (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  justifyContent: isUser ? "flex-end" : "flex-start",
-                }}
-              >
-                <div
-                  style={{
-                    maxWidth: "85%",
-                    padding: "14px 16px",
-                    borderRadius: 18,
-                    lineHeight: 1.45,
-                    fontSize: 17,
-                    background: isUser
-                      ? "linear-gradient(135deg, rgba(147,51,234,0.30), rgba(37,99,235,0.30))"
-                      : "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  {msg.content}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: 10,
-            padding: 16,
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Pose ta question..."
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "white",
-              borderRadius: 16,
-              padding: "14px 14px",
-              fontSize: 16,
-              outline: "none",
-            }}
-          />
-
-          <button
-            onClick={sendMessage}
-            style={{
-              border: "none",
-              borderRadius: 16,
-              background: "linear-gradient(135deg, #9333ea, #2563eb)",
-              color: "white",
-              fontWeight: 800,
-              padding: "0 18px",
-              fontSize: 18,
-            }}
-          >
-            →
-          </button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function Profile({ duration, runType }) {
   return (
     <div>
       <h1 style={{ fontSize: 36, margin: 0, fontWeight: 800 }}>Profil</h1>
@@ -854,9 +875,144 @@ function Profile({ duration, runType }) {
       </Card>
 
       <Card style={{ marginTop: 16 }}>
-        <Label>Statut</Label>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>Base STRIDE active</div>
+        <Label>Compagnon virtuel</Label>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <InputRow
+            label="Prénom"
+            value={companionProfile.name}
+            onChange={(value) => updateField("name", value)}
+            placeholder="Alicia"
+          />
+
+          <SelectRow
+            label="Identité"
+            value={companionProfile.identity}
+            onChange={(value) => updateField("identity", value)}
+            options={["femme", "homme", "IA"]}
+          />
+
+          <InputRow
+            label="Âge"
+            value={String(companionProfile.age)}
+            onChange={(value) => updateField("age", value)}
+            placeholder="25"
+          />
+
+          <SelectRow
+            label="Rôle"
+            value={companionProfile.role}
+            onChange={(value) => updateField("role", value)}
+            options={[
+              "coach",
+              "compagnon virtuel",
+              "présence bienveillante",
+              "ami proche",
+              "allié motivation",
+              "partenaire de progression",
+            ]}
+          />
+
+          <SelectRow
+            label="Style"
+            value={companionProfile.tone}
+            onChange={(value) => updateField("tone", value)}
+            options={[
+              "chaleureux",
+              "tendre",
+              "rassurant",
+              "motivant",
+              "stratégique",
+              "calme",
+            ]}
+          />
+
+          <InputRow
+            label="Passions"
+            value={companionProfile.passions}
+            onChange={(value) => updateField("passions", value)}
+            placeholder="running, bien-être, motivation"
+          />
+
+          <InputRow
+            label="Hobbies"
+            value={companionProfile.hobbies}
+            onChange={(value) => updateField("hobbies", value)}
+            placeholder="lecture, musique, course"
+          />
+        </div>
       </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <Label>Voix du compagnon</Label>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <select
+            value={selectedVoiceURI}
+            onChange={(e) => setSelectedVoiceURI(e.target.value)}
+            style={inputStyle}
+          >
+            {availableVoices.map((voice) => (
+              <option
+                key={voice.voiceURI}
+                value={voice.voiceURI}
+                style={{ color: "black" }}
+              >
+                {voice.name} ({voice.lang})
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={() =>
+              speak(
+                true,
+                `${companionProfile.name} est prêt${
+                  companionProfile.identity === "femme" ? "e" : ""
+                } à te parler avec cette voix.`,
+                selectedVoiceURI,
+                availableVoices
+              )
+            }
+            style={secondaryButtonStyle}
+          >
+            Tester la voix du compagnon
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function InputRow({ label, value, onChange, placeholder }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
+    </div>
+  );
+}
+
+function SelectRow({ label, value, onChange, options }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={inputStyle}
+      >
+        {options.map((option) => (
+          <option key={option} value={option} style={{ color: "black" }}>
+            {option}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -1030,160 +1186,24 @@ function getDistance(pos1, pos2) {
   return R * c;
 }
 
-function getCoachReply(question, context) {
-  const q = question.toLowerCase().trim();
-  const has = (...words) => words.some((w) => q.includes(w));
-
-  if (
-    has(
-      "sommeil",
-      "dormir",
-      "endormir",
-      "endormissement",
-      "insomnie",
-      "insomnies",
-      "réveil",
-      "reveil",
-      "réveils",
-      "reveils",
-      "nuit",
-      "nuits",
-      "je dors mal",
-      "mal dormir",
-      "mal à dormir",
-      "mal a dormir",
-      "du mal à dormir",
-      "du mal a dormir"
-    )
-  ) {
-    return "Si tu as du mal à dormir, commence par regarder 5 points : évite les écrans et la lumière forte 60 à 90 minutes avant le coucher, garde des horaires assez réguliers, évite les boissons stimulantes en fin de journée, fais redescendre la pression avec une routine calme comme respiration lente ou lecture, et allège un peu l’intensité de tes séances si ton sommeil est mauvais depuis plusieurs jours.";
-  }
-
-  if (
-    has(
-      "poids",
-      "poid",
-      "maigrir",
-      "mincir",
-      "sécher",
-      "secher",
-      "gras",
-      "ventre",
-      "calorie",
-      "calories",
-      "régime",
-      "regime",
-      "perdre"
-    )
-  ) {
-    return "Pour perdre du poids efficacement, vise surtout la régularité : 3 à 5 séances par semaine, beaucoup d’endurance facile, un léger déficit calorique, plus de marche au quotidien, un bon sommeil, et de la patience.";
-  }
-
-  if (has("semi", "semi-marathon", "semi marathon")) {
-    return "Pour préparer un semi, fais idéalement 3 à 4 sorties par semaine : un footing facile, une séance de qualité, une sortie longue progressive, et éventuellement une sortie récupération.";
-  }
-
-  if (has("10 km", "10km")) {
-    return "Pour progresser sur 10 km, combine endurance facile, travail au seuil et un peu de vitesse. Le 10 km récompense la régularité et la gestion de l’allure.";
-  }
-
-  if (has("5 km", "5km")) {
-    return "Pour un 5 km, garde une base d’endurance mais ajoute du travail de vitesse et de VO2. Il faut réussir à courir vite sans exploser trop tôt.";
-  }
-
-  if (has("fatigué", "fatigue", "crevé", "épuisé", "epuise")) {
-    return "Si tu te sens fatigué, allège aujourd’hui. Un footing très facile, une marche active ou du repos peuvent être bien plus utiles qu’une grosse séance mal encaissée.";
-  }
-
-  if (has("récup", "recup", "récupération", "recuperation")) {
-    return "Pour bien récupérer : sommeil, hydratation, alimentation correcte, et séance facile après un effort dur. La récupération fait partie de l’entraînement.";
-  }
-
-  if (has("aujourd", "quoi faire", "séance du jour", "seance du jour")) {
-    return `Aujourd’hui, je te recommande plutôt une séance de ${context.runType.toLowerCase()} sur ${context.duration} minutes, en restant propre techniquement et sans te cramer.`;
-  }
-
-  if (has("allure", "vitesse", "rythme", "km/h", "min/km")) {
-    return "Pour choisir la bonne allure, pars toujours un peu trop facile plutôt qu’un peu trop vite. Une séance propre vaut mieux qu’un départ trop ambitieux.";
-  }
-
-  if (has("fractionné", "fractionne", "intervalle", "intervalles", "vma")) {
-    return "Le fractionné doit rester maîtrisé. Échauffe-toi bien, garde de la qualité, et ne cherche pas à te détruire sur chaque répétition.";
-  }
-
-  if (has("sortie longue", "longue")) {
-    return "La sortie longue développe ton endurance générale. Pars facile, reste régulier, et évite de transformer chaque sortie longue en course.";
-  }
-
-  if (has("motivation", "motiver", "envie", "flemme", "pas motivé")) {
-    return "La motivation bouge beaucoup, c’est normal. Le plus important est la régularité. Même une petite séance propre vaut mieux qu’une grosse séance repoussée.";
-  }
-
-  if (
-    has(
-      "manger",
-      "alimentation",
-      "nutrition",
-      "repas",
-      "protéine",
-      "protéines",
-      "glucide",
-      "glucides"
-    )
-  ) {
-    return "Pour bien courir, garde une alimentation simple : assez de protéines, des glucides de qualité, des fruits, des légumes et une bonne hydratation.";
-  }
-
-  if (has("stress", "angoisse", "anxiété", "anxiete", "pression")) {
-    return "Si tu te sens stressé, baisse un peu la pression mentale. Reviens à des choses simples : respiration, routine stable, séance facile, objectif court terme.";
-  }
-
-  if (has("bonjour", "salut", "hello", "coucou")) {
-    return "Salut. Dis-moi ton objectif, ton niveau ou ton état de forme, et je te répondrai comme un coach running.";
-  }
-
-  return generateSmartFallback(question, context);
-}
-
-function generateSmartFallback(question, context) {
-  const q = question.toLowerCase().trim();
-
-  if (q.includes("plan")) {
-    return "Je peux te construire un plan simple. Dis-moi ton objectif précis : 5 km, 10 km, semi, perte de poids, reprise, ou remise en forme.";
-  }
-
-  if (q.includes("combien") || q.includes("temps")) {
-    return "Ça dépend de ton niveau actuel, de ton objectif et de ta fréquence d’entraînement. Donne-moi un peu plus de contexte et je te répondrai plus précisément.";
-  }
-
-  if (q.includes("comment")) {
-    return "Je peux t’aider précisément. Reformule juste ton objectif en une phrase simple, par exemple : comment progresser sur 10 km, comment perdre du poids, comment mieux dormir, ou comment préparer un semi.";
-  }
-
-  if (q.includes("objectif")) {
-    return "Donne-moi ton objectif principal : perdre du poids, courir plus vite, préparer un 10 km, préparer un semi, reprendre la course ou améliorer ton endurance.";
-  }
-
-  return `Je peux déjà t’aider sur :
-- sommeil
-- perte de poids
-- 5 km
-- 10 km
-- semi-marathon
-- fatigue
-- récupération
-- allure
-- fractionné
-- motivation
-- séance du jour`;
-}
-
-function primeSpeech() {
+function primeSpeech(selectedVoiceURI, availableVoices) {
   if (typeof window === "undefined" || !window.speechSynthesis) return false;
 
   try {
     const utterance = new SpeechSynthesisUtterance(" ");
     utterance.volume = 0;
+
+    const selectedVoice = availableVoices.find(
+      (voice) => voice.voiceURI === selectedVoiceURI
+    );
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
+    } else {
+      utterance.lang = "fr-FR";
+    }
+
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
     return true;
@@ -1192,16 +1212,28 @@ function primeSpeech() {
   }
 }
 
-function speak(enabled, text) {
+function speak(enabled, text, selectedVoiceURI = "", availableVoices = []) {
   if (!enabled) return;
   if (typeof window === "undefined" || !window.speechSynthesis) return;
 
   try {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "fr-FR";
+
+    const selectedVoice = availableVoices.find(
+      (voice) => voice.voiceURI === selectedVoiceURI
+    );
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
+    } else {
+      utterance.lang = "fr-FR";
+    }
+
     utterance.rate = 1;
     utterance.pitch = 1;
     utterance.volume = 1;
+
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   } catch {}
@@ -1228,4 +1260,15 @@ const secondaryButtonStyle = {
   color: "white",
   background: "rgba(255,255,255,0.04)",
   border: "1px solid rgba(255,255,255,0.08)",
+};
+
+const inputStyle = {
+  width: "100%",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "white",
+  borderRadius: 16,
+  padding: "14px 14px",
+  fontSize: 16,
+  outline: "none",
 };
